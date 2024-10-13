@@ -43,7 +43,7 @@ module Connectify::ConnectifyContract {
     const ETOKEN_NAME_EXISTS: u64 = 9;
 
 
-    const CONTRACT_OWNER: vector<u8> = b"0xdde34b48a4537989feaf9da6bf9aca8d4d4fc8e1a359f1bec58fa2500076515d"; 
+    const CONTRACT_OWNER: vector<u8> = b"0x2a52e310783f0a0ebc94aecd2f9266682e05e5c0c37307b6a089d0290f34cba8"; 
 
 
     /// Published under the contract owner's account.
@@ -54,15 +54,15 @@ module Connectify::ConnectifyContract {
         extend_ref: object::ExtendRef,
     }
 
-    struct ManufacturerResource has key, store, drop {
+    struct ManufacturerResource has key, store {
         designer_table: SmartTable<address,SmartVector<address>>
     }
 
-    struct DesignerResource has key, store, drop {
+    struct DesignerResource has key, store {
         model_products_table: SmartTable<address,SmartVector<address>>
     }
 
-    struct ModelProductResource has key, store, drop {
+    struct ModelProductResource has key, store {
         device_table: SmartTable<address,SmartVector<address>>
     }
 
@@ -202,20 +202,38 @@ module Connectify::ConnectifyContract {
     
     
     
-    
+    public entry fun add_manufacturer(admin: &signer, manufacturer_address: address) acquires Config {
+        assert!(sub_string(&to_string<address>(&signer::address_of(admin)),1, length(&to_string<address>(&signer::address_of(admin)))) == string::utf8(CONTRACT_OWNER), ENOT_CREATOR );
+        if (!exists<Config>(signer::address_of(admin))) {
+        // If it doesn't exist, initialize the module
+            init_module(admin);
+        };
+        assert!(!does_manufacturer_exist(manufacturer_address), ENOT_CREATOR);
+        let config = borrow_global_mut<Config>(signer::address_of(admin));
+        smart_vector::push_back(&mut config.manufacturer_list, manufacturer_address);
+    }
     
     
     public entry fun add_designer(manufacturer_address: &signer, designer: address) acquires ManufacturerResource, Config {
-        assert!(!does_manufacturer_exist(signer::address_of(manufacturer_address)), ENOT_CREATOR);
+        assert!(does_manufacturer_exist(signer::address_of(manufacturer_address)), ENOT_CREATOR);
+        // Initialize if it doesn't exist
+        if (!exists<ManufacturerResource>(signer::address_of(manufacturer_address))) {
+        // If it doesn't exist, initialize the module
+            init_manufacturer_resources(manufacturer_address);
+        };
         let config = borrow_global_mut<ManufacturerResource>(signer::address_of(manufacturer_address));
-        if(!smart_table::contains(&config.designer_table, &manufacturer_address)){
-            let designer_vector = smart_table::borrow_mut_with_default(&mut config.designer_table, signer::address_of(manufacturer_address), smart_vector::new<address>());
+        if(!smart_table::contains(&config.designer_table, signer::address_of(manufacturer_address))){
+            let designer_vector = smart_vector::new<address>();
             smart_vector::push_back(&mut designer_vector, designer);
-            smart_table::upsert(&mut config.designer_table, signer::address_of(manufacturer_address) , designer);
+            smart_table::add(&mut config.designer_table, signer::address_of(manufacturer_address) , designer_vector);
         }
-        let designer_vector = smart_table::borrow_mut_with_default(&mut config.designer_table, signer::address_of(manufacturer_address), smart_vector::new<address>());
-        smart_vector::push_back(&mut designer_vector, designer);
-        smart_table::upsert(&mut config.designer_table, signer::address_of(manufacturer_address) , designer);
+        else{
+            let designer_vector = smart_table::remove(&mut config.designer_table, signer::address_of(manufacturer_address));
+            let new_designer_vector = smart_vector::new<address>();
+            smart_vector::append(&mut new_designer_vector, designer_vector);
+            smart_vector::push_back(&mut new_designer_vector, designer);
+            smart_table::add(&mut config.designer_table, signer::address_of(manufacturer_address) , new_designer_vector);
+        }
     }
 
     
@@ -240,16 +258,17 @@ module Connectify::ConnectifyContract {
     
     
     fun does_manufacturer_exist(manufacturer_address:address): bool acquires Config{
-        let addr: address = @0xdde34b48a4537989feaf9da6bf9aca8d4d4fc8e1a359f1bec58fa2500076515d;
+        let addr: address = @0x2a52e310783f0a0ebc94aecd2f9266682e05e5c0c37307b6a089d0290f34cba8;
         let manufacturer_list = &borrow_global<Config>(addr).manufacturer_list;
         smart_vector::contains(manufacturer_list, &manufacturer_address)
     }
 
-    // fun does_designer_exist(manufacturer_address: &signer, designer_address:address): bool acquires Config{
-    //     let addr = signer::address_of(manufacturer_address);
-    //     let designer_table = &borrow_global<ManufacturerResource>(addr).designer_table;
-    //     smart_table::contains(designer_table, &designer_address)
-    // }
+    #[view]
+    public fun does_designer_exist(manufacturer_address: address, designer_address:address): bool acquires ManufacturerResource{
+        let designer_table = &borrow_global<ManufacturerResource>(manufacturer_address).designer_table;
+        let designer_vector = smart_table::borrow(designer_table, manufacturer_address);
+        smart_vector::contains(designer_vector, &designer_address)
+    }
 
 
     
@@ -375,7 +394,7 @@ module Connectify::ConnectifyContract {
         object::object_from_constructor_ref(&constructor_ref)
     }
 
-    /// With an existing collection, directly mint a viable token into the creators account.
+    // /// With an existing collection, directly mint a viable token into the creators account.
     // public entry fun mint(
     //     creator: &signer,
     //     collection: String,
@@ -385,7 +404,7 @@ module Connectify::ConnectifyContract {
     //     property_keys: vector<String>,
     //     property_types: vector<String>,
     //     property_values: vector<vector<u8>>,
-    //     manufacturer: Option<String>
+    //     manufacturer: Option<String>,
     //     designer: Option<String>,
     //     user: Option<String>,
     // ) acquires ManufacturerCollection, ConnectifyToken, Config {
@@ -407,6 +426,23 @@ module Connectify::ConnectifyContract {
     //     mint_token_object(creator, collection, description, name, uri, property_keys, property_types, property_values);
         
     // }
+
+
+    public entry fun mint(
+        creator: &signer,
+        collection: String,
+        description: String,
+        name: String,
+        uri: String,
+        property_keys: vector<String>,
+        property_types: vector<String>,
+        property_values: vector<vector<u8>>,
+    ) acquires ManufacturerCollection, ConnectifyToken, Config {
+        assert!(sub_string(&to_string<address>(&signer::address_of(creator)),1, length(&to_string<address>(&signer::address_of(creator)))) == string::utf8(CONTRACT_OWNER), ENOT_CREATOR );
+        assert!(!does_token_name_exist(name), ETOKEN_NAME_EXISTS);
+        mint_token_object(creator, collection, description, name, uri, property_keys, property_types, property_values);
+        add_token_name(creator, name);
+    }
 
 
     /// Mint a token into an existing collection, and retrieve the object / address of the token.
