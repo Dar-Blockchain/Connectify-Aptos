@@ -2,7 +2,7 @@
 compiled_package_info:
   package_name: connectify_smart_contracts
   address_alias_instantiation:
-    Connectify: 9cdf546ac3d5c30fd4983073e8284cbe9cef898c9ada36c6201244beba6085a4
+    Connectify: 7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036
     Extensions: "0000000000000000000000000000000000000000000000000000000000000001"
     aptos_framework: "0000000000000000000000000000000000000000000000000000000000000001"
     aptos_fungible_asset: 000000000000000000000000000000000000000000000000000000000000000a
@@ -13,7 +13,7 @@ compiled_package_info:
     std: "0000000000000000000000000000000000000000000000000000000000000001"
     vm: "0000000000000000000000000000000000000000000000000000000000000000"
     vm_reserved: "0000000000000000000000000000000000000000000000000000000000000000"
-  source_digest: AE93EAD73C31B500EA591FCE090BF1CDF064EF5BF7C46E74DF9D5A12E1162609
+  source_digest: A608916B457BBFF748D792FA53619252BB46153922308301CF9922EB3605F10C
   build_flags:
     dev_mode: false
     test_mode: false
@@ -25,7 +25,7 @@ compiled_package_info:
     install_dir: ~
     force_recompilation: false
     additional_named_addresses:
-      Connectify: 9cdf546ac3d5c30fd4983073e8284cbe9cef898c9ada36c6201244beba6085a4
+      Connectify: 7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036
     architecture: ~
     fetch_deps_only: false
     skip_fetch_latest_git_deps: false
