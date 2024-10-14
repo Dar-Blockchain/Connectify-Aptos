@@ -41,9 +41,17 @@ module Connectify::ConnectifyContract {
     const ECOLLECTION_NAME_EXISTS: u64 = 8;
 
     const ETOKEN_NAME_EXISTS: u64 = 9;
+    const EMANUFACTURER_DOESNT_EXIST: u64 = 10;
+    const EDESIGNER_EXISTS: u64 = 11;
+    const EMODEL_PRODUCT_EXISTS: u64 = 12;
+    const EDESIGNER_DOESNT_EXIST: u64 = 13;
+    const EMODEL_PRODUCT_ISNT_GIVEN: u64 = 14;
+    const EMODEL_PRODUCT_DOESNT_EXIST: u64 = 15;
+    const ENOT_ALLOWED: u64 = 16;
 
 
-    const CONTRACT_OWNER: vector<u8> = b"0x2a52e310783f0a0ebc94aecd2f9266682e05e5c0c37307b6a089d0290f34cba8"; 
+
+    const CONTRACT_OWNER: vector<u8> = b"0x4d3306fc6e54d765b9b95db605326ae2d8fc6975388c6ec1711bf3a64accc4c9"; 
 
 
     /// Published under the contract owner's account.
@@ -55,16 +63,17 @@ module Connectify::ConnectifyContract {
     }
 
     struct ManufacturerResource has key, store {
-        designer_table: SmartTable<address,SmartVector<address>>
+        designer_list: SmartVector<address>
     }
 
     struct DesignerResource has key, store {
-        model_products_table: SmartTable<address,SmartVector<address>>
+        model_product_list: SmartVector<String>,
+        device_table: SmartTable<String,SmartVector<address>>
     }
 
-    struct ModelProductResource has key, store {
-        device_table: SmartTable<address,SmartVector<address>>
-    }
+    // struct ModelProductResource has key, store {
+    //     device_table: SmartTable<address,SmartVector<address>>
+    // }
 
 
     #[event]
@@ -134,19 +143,13 @@ module Connectify::ConnectifyContract {
 
     fun init_manufacturer_resources(sender: &signer){
         // Publish the ManufacturerResource resource.
-        move_to(sender, ManufacturerResource { designer_table: smart_table::new<address,SmartVector<address>>() });
+        move_to(sender, ManufacturerResource { designer_list: smart_vector::new<address>() });
         
     }
 
     fun init_designer_resources(sender: &signer){
         // Publish the config resource.
-        move_to(sender, DesignerResource { model_products_table: smart_table::new<address,SmartVector<address>>() });    
-    }
-
-    fun init_model_product_resources(sender: &signer){
-        // Publish the config resource.
-        move_to(sender, ModelProductResource { device_table: smart_table::new<address,SmartVector<address>>() });
-        
+        move_to(sender, DesignerResource { model_product_list: smart_vector::new<String>(), device_table: smart_table::new<String,SmartVector<address>>() });    
     }
 
 
@@ -179,7 +182,7 @@ module Connectify::ConnectifyContract {
 
 
     fun does_collection_name_exist(collection_name:String): bool acquires Config{
-        let addr: address = @0xdde34b48a4537989feaf9da6bf9aca8d4d4fc8e1a359f1bec58fa2500076515d;
+        let addr: address = @0x4d3306fc6e54d765b9b95db605326ae2d8fc6975388c6ec1711bf3a64accc4c9;
         let collection_names_list = &borrow_global<Config>(addr).collection_names_list;
         smart_vector::contains(collection_names_list, &collection_name)
     }
@@ -215,27 +218,51 @@ module Connectify::ConnectifyContract {
     
     
     public entry fun add_designer(manufacturer_address: &signer, designer: address) acquires ManufacturerResource, Config {
-        assert!(does_manufacturer_exist(signer::address_of(manufacturer_address)), ENOT_CREATOR);
+        assert!(does_manufacturer_exist(signer::address_of(manufacturer_address)), EMANUFACTURER_DOESNT_EXIST);
         // Initialize if it doesn't exist
         if (!exists<ManufacturerResource>(signer::address_of(manufacturer_address))) {
         // If it doesn't exist, initialize the module
             init_manufacturer_resources(manufacturer_address);
+            let manufacturer_res = borrow_global_mut<ManufacturerResource>(signer::address_of(manufacturer_address));
+            smart_vector::push_back(&mut manufacturer_res.designer_list, signer::address_of(manufacturer_address));
         };
-        let config = borrow_global_mut<ManufacturerResource>(signer::address_of(manufacturer_address));
-        if(!smart_table::contains(&config.designer_table, signer::address_of(manufacturer_address))){
-            let designer_vector = smart_vector::new<address>();
-            smart_vector::push_back(&mut designer_vector, designer);
-            smart_table::add(&mut config.designer_table, signer::address_of(manufacturer_address) , designer_vector);
-        }
-        else{
-            let designer_vector = smart_table::remove(&mut config.designer_table, signer::address_of(manufacturer_address));
-            let new_designer_vector = smart_vector::new<address>();
-            smart_vector::append(&mut new_designer_vector, designer_vector);
-            smart_vector::push_back(&mut new_designer_vector, designer);
-            smart_table::add(&mut config.designer_table, signer::address_of(manufacturer_address) , new_designer_vector);
-        }
+        assert!(!does_designer_exist(signer::address_of(manufacturer_address), designer), EDESIGNER_EXISTS);
+        let manufacturer_res = borrow_global_mut<ManufacturerResource>(signer::address_of(manufacturer_address));
+        smart_vector::push_back(&mut manufacturer_res.designer_list, designer);
     }
 
+
+    public entry fun add_model_product(designer_address: &signer, manufacturer_address: address, model_product_add: address) acquires ManufacturerResource, DesignerResource {
+        assert!(does_designer_exist(manufacturer_address, signer::address_of(designer_address)), EDESIGNER_DOESNT_EXIST);
+        let model_product = to_string<address>(&model_product_add);
+        // Initialize if it doesn't exist
+        if (!exists<DesignerResource>(signer::address_of(designer_address))) {
+        // If it doesn't exist, initialize the module
+            init_designer_resources(designer_address);
+        };
+        assert!(!does_model_product_exist(signer::address_of(designer_address), model_product), EMODEL_PRODUCT_EXISTS);
+        let designer_res = borrow_global_mut<DesignerResource>(signer::address_of(designer_address));
+        smart_vector::push_back(&mut designer_res.model_product_list, model_product);
+    }
+
+
+    public entry fun add_device(designer_address: &signer, manufacturer_address:address, model_product: String, device_address: address) acquires ManufacturerResource, DesignerResource {
+        assert!(does_designer_exist(manufacturer_address, signer::address_of(designer_address)), EDESIGNER_DOESNT_EXIST);
+
+        let designer_res = borrow_global_mut<DesignerResource>(signer::address_of(designer_address));
+        if(!smart_table::contains(&designer_res.device_table, model_product)){
+            let device_vector = smart_vector::new<address>();
+            smart_vector::push_back(&mut device_vector, device_address);
+            smart_table::add(&mut designer_res.device_table, model_product, device_vector);
+        }
+        else{
+            let device_vector = smart_table::remove(&mut designer_res.device_table, model_product);
+            let new_device_vector = smart_vector::new<address>();
+            smart_vector::append(&mut new_device_vector, device_vector);
+            smart_vector::push_back(&mut new_device_vector, device_address);
+            smart_table::add(&mut designer_res.device_table, model_product , new_device_vector);
+        }
+    }
     
     
     public entry fun remove_token_name(admin: &signer, token_name: String) acquires Config {
@@ -249,7 +276,7 @@ module Connectify::ConnectifyContract {
     }
 
     fun does_token_name_exist(token_name:String): bool acquires Config{
-        let addr: address = @0xdde34b48a4537989feaf9da6bf9aca8d4d4fc8e1a359f1bec58fa2500076515d;
+        let addr: address = @0x4d3306fc6e54d765b9b95db605326ae2d8fc6975388c6ec1711bf3a64accc4c9;
         let tokens_names_list = &borrow_global<Config>(addr).tokens_names_list;
         smart_vector::contains(tokens_names_list, &token_name)
     }
@@ -258,20 +285,30 @@ module Connectify::ConnectifyContract {
     
     
     fun does_manufacturer_exist(manufacturer_address:address): bool acquires Config{
-        let addr: address = @0x2a52e310783f0a0ebc94aecd2f9266682e05e5c0c37307b6a089d0290f34cba8;
+        let addr: address = @0x4d3306fc6e54d765b9b95db605326ae2d8fc6975388c6ec1711bf3a64accc4c9;
         let manufacturer_list = &borrow_global<Config>(addr).manufacturer_list;
         smart_vector::contains(manufacturer_list, &manufacturer_address)
     }
 
     #[view]
     public fun does_designer_exist(manufacturer_address: address, designer_address:address): bool acquires ManufacturerResource{
-        let designer_table = &borrow_global<ManufacturerResource>(manufacturer_address).designer_table;
-        let designer_vector = smart_table::borrow(designer_table, manufacturer_address);
-        smart_vector::contains(designer_vector, &designer_address)
+        let designer_list = &borrow_global<ManufacturerResource>(manufacturer_address).designer_list;
+        smart_vector::contains(designer_list, &designer_address)
     }
 
+    #[view]
+    public fun does_model_product_exist(designer_address: address, model_product:String): bool acquires DesignerResource{
+        let model_product_list = &borrow_global<DesignerResource>(designer_address).model_product_list;
+        smart_vector::contains(model_product_list, &model_product)
+    }
 
-    
+//DOES DEVICE EXIST ADD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #[view]
+    public fun does_device_exist(designer_address: address, model_product:String, device_address:address): bool acquires DesignerResource{
+        let device_table = &borrow_global<DesignerResource>(designer_address).device_table;
+        let device_vector = smart_table::borrow(device_table, model_product);
+        smart_vector::contains(device_vector, &device_address)
+    }
     
     
     
@@ -316,8 +353,8 @@ module Connectify::ConnectifyContract {
         tokens_freezable_by_creator: bool,
         royalty_numerator: u64,
         royalty_denominator: u64,
-    ) acquires Config {
-        assert!(sub_string(&to_string<address>(&signer::address_of(creator)),1, length(&to_string<address>(&signer::address_of(creator)))) == string::utf8(CONTRACT_OWNER), ENOT_CREATOR );
+    ) {
+        //assert!(sub_string(&to_string<address>(&signer::address_of(creator)),1, length(&to_string<address>(&signer::address_of(creator)))) == string::utf8(CONTRACT_OWNER), ENOT_CREATOR );
         create_collection_object(
             creator,
             description,
@@ -335,7 +372,7 @@ module Connectify::ConnectifyContract {
             royalty_numerator,
             royalty_denominator
         );
-        add_collection_name(creator, name);
+        //add_collection_name(creator, name);
     }
 
     public fun create_collection_object(
@@ -428,21 +465,89 @@ module Connectify::ConnectifyContract {
     // }
 
 
-    public entry fun mint(
+    public entry fun mint_as_manufacturer(
         creator: &signer,
         collection: String,
         description: String,
         name: String,
         uri: String,
+        isDevice: bool,
+        model_product: Option<String>,
         property_keys: vector<String>,
         property_types: vector<String>,
         property_values: vector<vector<u8>>,
-    ) acquires ManufacturerCollection, ConnectifyToken, Config {
-        assert!(sub_string(&to_string<address>(&signer::address_of(creator)),1, length(&to_string<address>(&signer::address_of(creator)))) == string::utf8(CONTRACT_OWNER), ENOT_CREATOR );
-        assert!(!does_token_name_exist(name), ETOKEN_NAME_EXISTS);
-        mint_token_object(creator, collection, description, name, uri, property_keys, property_types, property_values);
-        add_token_name(creator, name);
+    ) acquires ManufacturerCollection, ConnectifyToken, Config, DesignerResource, ManufacturerResource {
+        //assert!(!does_token_name_exist(name), ETOKEN_NAME_EXISTS);
+
+        
+        assert!(does_manufacturer_exist(signer::address_of(creator)), EMANUFACTURER_DOESNT_EXIST);
+        let mintedToken = mint_token_object(creator, collection, description, name, uri, property_keys, property_types, property_values);
+        //add_token_name(creator, name);
+        if(!isDevice){  
+            add_model_product(creator, signer::address_of(creator), object::object_address(&mintedToken));
+        }
+        else{
+            assert!(option::is_some(&model_product), EMODEL_PRODUCT_ISNT_GIVEN);
+            let model_prod = option::borrow(&model_product);
+            assert!(does_model_product_exist(signer::address_of(creator), *model_prod), EMODEL_PRODUCT_DOESNT_EXIST);
+            add_device(creator, signer::address_of(creator), *model_prod, object::object_address(&mintedToken));
+        }
     }
+
+
+    public entry fun mint_as_designer(
+        creator: &signer,
+        collection: String,
+        description: String,
+        name: String,
+        uri: String,
+        manufacturer: address,
+        isDevice: bool,
+        model_product: Option<String>,
+        property_keys: vector<String>,
+        property_types: vector<String>,
+        property_values: vector<vector<u8>>,
+    ) acquires ManufacturerCollection, ConnectifyToken, DesignerResource, ManufacturerResource {
+        //assert!(!does_token_name_exist(name), ETOKEN_NAME_EXISTS);
+
+        
+        assert!(does_designer_exist(manufacturer, signer::address_of(creator)), EDESIGNER_DOESNT_EXIST);
+        let mintedToken = mint_token_object(creator, collection, description, name, uri, property_keys, property_types, property_values);
+        //add_token_name(creator, name);
+        if(!isDevice){  
+            add_model_product(creator, manufacturer, object::object_address(&mintedToken));
+        }
+        else{
+            assert!(option::is_some(&model_product), EMODEL_PRODUCT_ISNT_GIVEN);
+            let model_prod = option::borrow(&model_product);
+            assert!(does_model_product_exist(signer::address_of(creator), *model_prod), EMODEL_PRODUCT_DOESNT_EXIST);
+            add_device(creator, manufacturer, *model_prod, object::object_address(&mintedToken));
+        }
+    }
+
+
+
+
+
+    // public entry fun mint(
+    //     creator: &signer,
+    //     manufacturer: Option<address>,
+    //     collection: String,
+    //     description: String,
+    //     name: String,
+    //     uri: String,
+    //     property_keys: vector<String>,
+    //     property_types: vector<String>,
+    //     property_values: vector<vector<u8>>,
+    // ) acquires ManufacturerCollection, ConnectifyToken, Config {
+    //     assert!(sub_string(&to_string<address>(&signer::address_of(creator)),1, length(&to_string<address>(&signer::address_of(creator)))) == string::utf8(CONTRACT_OWNER), ENOT_CREATOR );
+    //     assert!(!does_token_name_exist(name), ETOKEN_NAME_EXISTS);
+
+        
+    //     assert!(does_designer_exist(signer::address_of(creator), option::borrow(&manufacturer)), EDESIGNER_DOESNT_EXIST);
+    //     mint_token_object(creator, collection, description, name, uri, property_keys, property_types, property_values);
+    //     add_token_name(creator, name);
+    // }
 
 
     /// Mint a token into an existing collection, and retrieve the object / address of the token.
@@ -629,22 +734,19 @@ module Connectify::ConnectifyContract {
 
     // Token mutators
 
-    inline fun authorized_borrow<T: key>(token: &Object<T>, creator: &signer): &ConnectifyToken {
+    inline fun authorized_borrow<T: key>(token: &Object<T>, creator: &signer, manufacturer: address): &ConnectifyToken acquires Config, ManufacturerResource {
         let token_address = object::object_address(token);
         assert!(
             exists<ConnectifyToken>(token_address),
             error::not_found(ETOKEN_DOES_NOT_EXIST),
         );
 
-        assert!(
-            token::creator(*token) == signer::address_of(creator),
-            error::permission_denied(ENOT_CREATOR),
-        );
+        assert!(does_manufacturer_exist(signer::address_of(creator)) || does_designer_exist(signer::address_of(creator), manufacturer), error::permission_denied(ENOT_ALLOWED));
         borrow_global<ConnectifyToken>(token_address)
     }
 
-    public entry fun burn<T: key>(creator: &signer, token: Object<T>) acquires ConnectifyToken, Config {
-        let connectify_token = authorized_borrow(&token, creator);
+    public entry fun burn<T: key>(creator: &signer, manufacturer:address, token: Object<T>) acquires ConnectifyToken, Config, ManufacturerResource{
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             option::is_some(&connectify_token.burn_ref),
             error::permission_denied(ETOKEN_NOT_BURNABLE),
@@ -657,14 +759,14 @@ module Connectify::ConnectifyContract {
             mutator_ref: _,
             property_mutator_ref,
         } = connectify_token;
-        remove_token_name(creator,token::name<T>(token));
+        //remove_token_name(creator,token::name<T>(token));
         property_map::burn(property_mutator_ref);
         token::burn(option::extract(&mut burn_ref));
         
     }
 
-    public entry fun freeze_transfer<T: key>(creator: &signer, token: Object<T>) acquires ManufacturerCollection, ConnectifyToken {
-        let connectify_token = authorized_borrow(&token, creator);
+    public entry fun freeze_transfer<T: key>(creator: &signer, manufacturer: address, token: Object<T>) acquires ManufacturerCollection, ConnectifyToken, Config, ManufacturerResource {
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_collection_tokens_freezable(token::collection_object(token))
                 && option::is_some(&connectify_token.transfer_ref),
@@ -674,10 +776,11 @@ module Connectify::ConnectifyContract {
     }
 
     public entry fun unfreeze_transfer<T: key>(
-        creator: &signer,
+        creator: &signer, 
+        manufacturer: address,
         token: Object<T>
-    ) acquires ManufacturerCollection, ConnectifyToken {
-        let connectify_token = authorized_borrow(&token, creator);
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_collection_tokens_freezable(token::collection_object(token))
                 && option::is_some(&connectify_token.transfer_ref),
@@ -687,52 +790,56 @@ module Connectify::ConnectifyContract {
     }
 
     public entry fun set_description<T: key>(
-        creator: &signer,
+        creator: &signer, 
+        manufacturer: address,
         token: Object<T>,
         description: String,
-    ) acquires ManufacturerCollection, ConnectifyToken {
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
         assert!(
             is_mutable_description(token),
             error::permission_denied(EFIELD_NOT_MUTABLE),
         );
-        let connectify_token = authorized_borrow(&token, creator);
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         token::set_description(option::borrow(&connectify_token.mutator_ref), description);
     }
 
     public entry fun set_name<T: key>(
-        creator: &signer,
+        creator: &signer, 
+        manufacturer: address,
         token: Object<T>,
         name: String,
-    ) acquires ManufacturerCollection, ConnectifyToken {
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {    
         assert!(
             is_mutable_name(token),
             error::permission_denied(EFIELD_NOT_MUTABLE),
         );
-        let connectify_token = authorized_borrow(&token, creator);
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         token::set_name(option::borrow(&connectify_token.mutator_ref), name);
     }
 
     public entry fun set_uri<T: key>(
-        creator: &signer,
+        creator: &signer, 
+        manufacturer: address,
         token: Object<T>,
         uri: String,
-    ) acquires ManufacturerCollection, ConnectifyToken {
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
         assert!(
             is_mutable_uri(token),
             error::permission_denied(EFIELD_NOT_MUTABLE),
         );
-        let connectify_token = authorized_borrow(&token, creator);
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         token::set_uri(option::borrow(&connectify_token.mutator_ref), uri);
     }
 
     public entry fun add_property<T: key>(
         creator: &signer,
+        manufacturer: address,
         token: Object<T>,
         key: String,
         type: String,
         value: vector<u8>,
-    ) acquires ManufacturerCollection, ConnectifyToken {
-        let connectify_token = authorized_borrow(&token, creator);
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_properties_mutable(token),
             error::permission_denied(EPROPERTIES_NOT_MUTABLE),
@@ -743,11 +850,12 @@ module Connectify::ConnectifyContract {
 
     public entry fun add_typed_property<T: key, V: drop>(
         creator: &signer,
+        manufacturer: address,
         token: Object<T>,
         key: String,
         value: V,
-    ) acquires ManufacturerCollection, ConnectifyToken {
-        let connectify_token = authorized_borrow(&token, creator);
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_properties_mutable(token),
             error::permission_denied(EPROPERTIES_NOT_MUTABLE),
@@ -758,10 +866,11 @@ module Connectify::ConnectifyContract {
 
     public entry fun remove_property<T: key>(
         creator: &signer,
+        manufacturer: address,
         token: Object<T>,
         key: String,
-    ) acquires ManufacturerCollection, ConnectifyToken {
-        let connectify_token = authorized_borrow(&token, creator);
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_properties_mutable(token),
             error::permission_denied(EPROPERTIES_NOT_MUTABLE),
@@ -772,13 +881,14 @@ module Connectify::ConnectifyContract {
 
     public entry fun update_property<T: key>(
         creator: &signer,
+        manufacturer: address,
         token: Object<T>,
         key: String,
         type: String,
         value: vector<u8>,
-    ) acquires ManufacturerCollection, ConnectifyToken {
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
 
-        let connectify_token = authorized_borrow(&token, creator);
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_properties_mutable(token),
             error::permission_denied(EPROPERTIES_NOT_MUTABLE),
@@ -799,11 +909,12 @@ module Connectify::ConnectifyContract {
 
     public entry fun update_typed_property<T: key, V: drop>(
         creator: &signer,
+        manufacturer: address,
         token: Object<T>,
         key: String,
         value: V,
-    ) acquires ManufacturerCollection, ConnectifyToken {
-        let connectify_token = authorized_borrow(&token, creator);
+    ) acquires ManufacturerCollection, ConnectifyToken, ManufacturerResource, Config {
+        let connectify_token = authorized_borrow(&token, creator, manufacturer);
         assert!(
             are_properties_mutable(token),
             error::permission_denied(EPROPERTIES_NOT_MUTABLE),

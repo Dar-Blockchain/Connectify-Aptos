@@ -1,14 +1,19 @@
 
 1/ Create collection 
-aptos move run --function-id 0x7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036::ConnectifyContract::create_collection --args "string:connectify_collection_test" "string:connectify_collection" "string:www.connectify.io" "bool:true" "bool:false" "bool:true" "bool:true" "bool:true" "bool:true" "bool:true" "bool:true" "bool:true" u64:0 u64:100
+aptos move run --function-id 0x89f822ed73aed3d199c8854b126433ff068c08aa4e668fe64259a6aca3cc0b88::ConnectifyContract::create_collection --args "string:connectify_collection_test" "string:connectify_collection" "string:www.connectify.io" "bool:true" "bool:false" "bool:true" "bool:true" "bool:true" "bool:true" "bool:true" "bool:true" "bool:true" u64:0 u64:100
 
 2/ Clear config
-aptos move run --function-id 0x7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036::ConnectifyContract::clear_config 
+aptos move run --function-id 0xb590a77bb1982367be3d6f00b4ffb6d24182d5bdb6a206ddac7cec5094ca9f98::ConnectifyContract::clear_config 
 
 
 3/ Mint NFT 
-aptos move run --function-id 0x7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036::ConnectifyContract::mint --args "string:connectify_collection" "string:Ceo entrepreneur born in 1964 Jeffery Jeffery Bezos" "string:Amazon" "string:www.connectify.io" 'string:["refId"]' 'string:["vector<u8>"]' 'string:["0459976"]'
+aptos move run --function-id 0x89f822ed73aed3d199c8854b126433ff068c08aa4e668fe64259a6aca3cc0b88::ConnectifyContract::mint_as_manufacturer --args "string:Amazon" "string:Ceo entrepreneur born in 1964 Jeffery Jeffery Bezos" "string:Amazon Kindle" "string:www.connectify.io" "bool:false" 'string:["refId"]' 'string:["vector<u8>"]' 'string:["0459976"]'
 
+
+aptos move run --function-id 0x7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036::ConnectifyContract::mint --args "string:connectify_collection_test" "string:Ceo entrepreneur born in 1964 Jeffery Jeffery Bezos" "string:Amazon" "string:www.connectify.io" 'string:["refId"]' 'string:["0x1::string::String"]' 'string:["0459976"]'
+
+
+0xdde34b48a4537989feaf9da6bf9aca8d4d4fc8e1a359f1bec58fa2500076515d
 
 aptos move run \
     --function-id $ace_addr::cli_args::set_vals \
@@ -30,3 +35,9 @@ My wallet  0xdde34b48a4537989feaf9da6bf9aca8d4d4fc8e1a359f1bec58fa2500076515d
 
 Upgrade Contract
 aptos move upgrade-object --address-name Connectify --object-address 0x7d2ea6267ead75a6ae097da123298c3ddd37daf157174ab26976f24dd6657036
+
+
+0x4dc6a5f11aeeb358a1c75a0f5311adb6a0ec67c6648c939bfce971f5b33d8ac0
+
+
+aptos move run --function-id 0x6d4e728b5c3b532920dae71dca6c00ec7d6e0be6d4aab9e59d89f0cf8078d9d2::ConnectifyContract::add_manufacturer --args "string:0xed25a9a4d0bd84869494ff5cfcea635934dcec1759eeb393b445d63fb2d4f275"
